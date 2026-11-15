@@ -1,8 +1,18 @@
-"""Diagnóstico da v1: reproduz o pipeline do notebook 01 (TCC original) e isola o efeito de cada problema.
-Cenários: A = original; B = com/sem total_days_observed (vazamento); C = negativos com corte aleatório.
-Uso: python reanalysis/01_diagnose_v1.py . reanalysis/results/results_v1_diagnosis.json   (dados em ./Data)
+"""v1 diagnosis: reproduces the original thesis pipeline (notebook 01) and isolates the effect of each flaw.
+
+Ablation scenarios (one factor changed at a time, same split and seed):
+  A = original pipeline (24h and 48h, exactly as in the notebook)
+  B = with / without `total_days_observed` (the leaky feature)
+  C = negatives cut at a random point of their stay instead of at discharge
+
+Usage: python reanalysis/01_diagnose_v1.py . reanalysis/results/results_v1_diagnosis.json   (data in ./Data)
+Note: variable names and the data preparation intentionally mirror the original notebook cells.
 """
+from __future__ import annotations
+
 import sys, os, json, random, warnings
+from typing import Any
+
 import numpy as np, pandas as pd
 from sklearn.model_selection import StratifiedKFold, RandomizedSearchCV, train_test_split, cross_val_predict
 from sklearn.metrics import average_precision_score, precision_score, recall_score, roc_auc_score, confusion_matrix
@@ -19,8 +29,12 @@ np.random.seed(SEED); random.seed(SEED)
 garantee_dtime = lambda c: pd.to_datetime(c, errors="coerce")
 last_not_null = lambda x: x.dropna().iloc[-1] if x.notna().any() else np.nan
 
-# ------------------------------------------------------------------ células 2-13 (iguais ao notebook)
-def load_base():
+# ------------------------------------------------------------------ cells 2-13 (same as the notebook)
+def load_base() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Rebuild the v1 hourly dataset exactly as notebook cells 2-13 do (including the flaws under study).
+
+    Returns the merged hourly frame (with sepse_24h / sepse_48h labels) and the demographics frame.
+    """
     df_label = pd.read_csv('Data/training_data/SepsisLabel_train.csv').drop_duplicates()
     df_labs = pd.read_csv('Data/training_data/measurement_lab_train.csv').drop_duplicates()
     df_meds = pd.read_csv('Data/training_data/measurement_meds_train.csv').drop_duplicates()
@@ -32,7 +46,7 @@ def load_base():
     df_demo['visit_start_date'] = garantee_dtime(df_demo['visit_start_date'])
     df_demo.rename(columns={'visit_start_date': 'datetime'}, inplace=True)
 
-    # célula 4
+    # cell 4: timeline, synthetic D-1/D-2 rows for positives and the leaky total_days_observed
     df = df_label.sort_values(['person_id', 'datetime']).copy()
     df['qtty_days'] = df.groupby('person_id')['datetime'].transform(lambda x: (x - x.min()).dt.days)
     first_sepsis = df[df['SepsisLabel'] == 1].groupby('person_id').first().reset_index()
@@ -57,7 +71,7 @@ def load_base():
     df = df.merge(fs, on='person_id', how='left')
     df = df[(df['first_sepsis_datetime'].isna()) | (df['datetime'] <= df['first_sepsis_datetime'])].copy()
 
-    # célula 6
+    # cell 6: rename columns
     df_meds.rename(columns={'Systolic blood pressure': 'systolic_pressure', 'Diastolic blood pressure': 'diastolic_pressure',
                             'Body temperature': 'temperature', 'Respiratory rate': 'resp_rate', 'Heart rate': 'heart_rate',
                             'Measurement of oxygen saturation at periphery': 'oxygen_periphery',
@@ -86,7 +100,7 @@ def load_base():
         'Platelet count': 'platelet', 'Blood venous pH': 'venous_ph', 'D-dimer level': 'd_dimer_level', 'Blood arterial pH': 'arterial_ph',
         'Ionised calcium measurement': 'ionised_calcium'}
     df_labs.rename(columns=rename_cols, inplace=True)
-    # célula 7
+    # cell 7: one-hot encoding of categorical observations
     cap_map = {'Normal capillary filling': 'normal', 'Increased capillary filling time': 'increased',
                'Decreased capillary filling time': 'decreased', np.nan: 'none'}
     df_obs['capillary_refil'] = df_obs['capillary_refil'].map(cap_map)
@@ -97,7 +111,7 @@ def load_base():
     enc = ['capillary_decreased', 'capillary_increased', 'capillary_none', 'capillary_normal', 'art_pressure_Absent',
            'art_pressure_Present', 'art_pressure_Weak', 'pulse_Absent', 'pulse_Present', 'pulse_Weak']
     df_obs[enc] = df_obs[enc].astype('int32').fillna(0)
-    # célula 8
+    # cell 8: merge all tables on (person_id, datetime)
     df_labs = df_labs.sort_values(['person_id', 'datetime']).drop(columns='visit_occurrence_id')
     df_meds = df_meds.sort_values(['person_id', 'datetime']).drop(columns='visit_occurrence_id')
     df_obs = df_obs.sort_values(['person_id', 'datetime']).drop(columns='visit_occurrence_id')
@@ -106,7 +120,7 @@ def load_base():
     df_final = (df.merge(df_labs, on=['person_id', 'datetime'], how='left')
                 .merge(df_meds, on=['person_id', 'datetime'], how='left')
                 .merge(df_obs, on=['person_id', 'datetime'], how='left'))
-    # célula 9 (limites de plausibilidade, iguais ao notebook)
+    # cell 9: physiological plausibility limits (same as the notebook)
     LIMITS = {'temperature': (32.0, 43.0), 'hematocrit': (12.0, 70.0), 'base_excess_venous': (-30.0, 25.0), 'base_excess_arterial': (-30.0, 25.0),
               'phosphate': (0.1, 15.0), 'potassium': (1.5, 9.5), 'bilirubin': (0.0, 50.0), 'neutrophil_ap': (0.0, 80.0),
               'bicarbonate_arterial': (2.0, 45.0), 'glucose': (5.0, 800.0), 'calcium': (4.0, 18.0), 'chloride': (70.0, 130.0),
@@ -123,13 +137,13 @@ def load_base():
     for col, (lo, hi) in LIMITS.items():
         if col in df_final.columns:
             df_final.loc[(df_final[col] < lo) | (df_final[col] > hi), col] = np.nan
-    # célula 11
+    # cell 11: drop columns that are entirely empty
     notok = ['person_id', 'datetime', 'SepsisLabel', 'qtty_days', 'last_datetime', 'first_sepsis_datetime', 'day', 'week',
              'first_datetime', '_synthetic']
     ok = [c for c in df_final.columns if c not in notok + enc]
     c1 = df_final[ok].describe()
     df_final = df_final.drop(columns=[i for i in c1.columns if np.isnan(c1[i]['max'])])
-    # célula 13
+    # cell 13: early labels (1 on the synthetic row 1 or 2 days before onset)
     df_final['sepse_24h'] = (df_final['qtty_days'] == -1).astype(int)
     df_final['sepse_48h'] = (df_final['qtty_days'] == -2).astype(int)
     df_final = df_final[~df_final['datetime'].isna()].copy()
@@ -139,9 +153,18 @@ def load_base():
 CLIN = None
 
 
-def build(df_final, df_demo, h, neg_cutoff="last", time_feature="leaky"):
-    """h=24|48. neg_cutoff: 'last' (original) ou 'random' (corte sorteado na internação do negativo).
-    time_feature: 'leaky' (total_days_observed original), 'none' ou 'until_cutoff' (horas observadas até o corte)."""
+def build(df_final: pd.DataFrame, df_demo: pd.DataFrame, h: int, neg_cutoff: str = "last",
+          time_feature: str = "leaky") -> tuple[pd.DataFrame, pd.Series, int]:
+    """Build the one-row-per-patient table for horizon h (24 or 48), as in the notebook.
+
+    Args:
+        neg_cutoff: 'last' (original: negatives summarized up to discharge) or 'random'
+            (cut-off drawn uniformly within the negative patient's stay).
+        time_feature: 'leaky' (original total_days_observed), 'none', or 'until_cutoff'
+            (hours observed up to the cut-off).
+
+    Returns X, y and the number of positives whose only rows before the cut-off are synthetic.
+    """
     d = df_final.copy()
     cut = d['first_sepsis_datetime'] - pd.Timedelta(hours=h)
     if neg_cutoff == "last":
@@ -166,7 +189,8 @@ def build(df_final, df_demo, h, neg_cutoff="last", time_feature="leaky"):
     for c in feat_cols:
         agg[c.lower() if c.startswith(('art_pressure', 'pulse_')) else c] = (c, last_not_null)
     g = d.groupby('person_id').agg(**agg).reset_index()
-    # célula 22: _last/_mean/_max/_min de 1 linha por paciente = o mesmo valor (std = NaN -> descartado no corte de 70%)
+    # cell 22: _last/_mean/_max/_min of a single row per patient are all the same value
+    # (std would be NaN and is removed by the 70% missingness rule)
     clin = [c for c in g.columns if c not in ['person_id', y, 'total_days_observed', 'hours_until_cutoff', '_only_synth']
             and not c.startswith(('capillary_', 'art_pressure_', 'pulse_'))]
     for c in clin:
@@ -186,7 +210,7 @@ def build(df_final, df_demo, h, neg_cutoff="last", time_feature="leaky"):
     return X, g[y], only_synth_pos
 
 
-# ------------------------------------------------------------------ modelos e busca (células 53-55)
+# ------------------------------------------------------------------ models and search space (cells 53-55)
 lr = [0.01, 0.03]; md = [2, 3, 4]; msl = [3, 7, 10]; cw = [{0: 1, 1: 30}, {0: 1, 1: 50}, {0: 1, 1: 100}]
 PARAMS = {
     'LGBM': dict(boosting_type=["gbdt", "dart", "goss"], n_estimators=[300, 600, 1000], num_leaves=[20, 40], learning_rate=lr,
@@ -199,13 +223,15 @@ PARAMS = {
 }
 
 
-def models():
+def models() -> dict[str, Any]:
+    """The three v1 candidate models with the notebook settings."""
     return {'LGBM': LGBMClassifier(objective='binary', random_state=SEED, n_jobs=6, verbose=-1),
             'HIST': HistGradientBoostingClassifier(random_state=SEED, early_stopping=True),
             'XGB': XGBClassifier(objective='binary:logistic', random_state=SEED, n_jobs=6)}
 
 
-def thr_rule(y, p, min_prec=0.25):
+def thr_rule(y: np.ndarray | pd.Series, p: np.ndarray, min_prec: float = 0.25) -> float | None:
+    """Grid-search threshold with the highest recall subject to precision >= min_prec (notebook rule)."""
     best_t, best_r = None, -1
     for t in np.linspace(0, 1, 2000):
         yp = (p >= t).astype(int)
@@ -217,7 +243,8 @@ def thr_rule(y, p, min_prec=0.25):
     return best_t
 
 
-def boot_ci(y, p, fn, n=1000):
+def boot_ci(y: np.ndarray | pd.Series, p: np.ndarray, fn: Any, n: int = 1000) -> list[float]:
+    """95% percentile bootstrap CI of metric `fn`."""
     rng = np.random.default_rng(SEED); y = np.asarray(y); p = np.asarray(p); vals = []
     for _ in range(n):
         idx = rng.integers(0, len(y), len(y))
@@ -227,7 +254,8 @@ def boot_ci(y, p, fn, n=1000):
     return [float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))]
 
 
-def run(X, y, name):
+def run(X: pd.DataFrame, y: pd.Series, name: str) -> dict[str, Any]:
+    """70/30 split, randomized search for each model, then test metrics and both threshold strategies."""
     Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=SEED, stratify=y)
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=SEED)
     res = {}
@@ -245,12 +273,12 @@ def run(X, y, name):
     out = dict(name=name, n_patients=int(len(y)), n_pos=int(y.sum()), n_test_pos=int(yte.sum()), n_features=int(X.shape[1]),
                per_model=res, best_model=bn, test_ap=float(average_precision_score(yte, p)),
                test_ap_ci=boot_ci(yte, p, average_precision_score), test_roc=float(roc_auc_score(yte, p)))
-    # (a) threshold escolhido no TESTE (como no notebook)
+    # (a) threshold chosen on the TEST set (as in the notebook)
     t_test = thr_rule(yte, p)
     yp = (p >= t_test).astype(int)
     out['thr_on_test'] = dict(t=float(t_test), recall=float(recall_score(yte, yp)), precision=float(precision_score(yte, yp)),
                               cm=confusion_matrix(yte, yp).ravel().tolist())
-    # (b) threshold escolhido em predições out-of-fold do TREINO (correto), avaliado no teste
+    # (b) threshold chosen on out-of-fold TRAINING predictions (correct), evaluated on test
     oof = cross_val_predict(clone(be), Xtr, ytr, cv=cv, method='predict_proba')[:, 1]
     t_oof = thr_rule(ytr, oof)
     if t_oof is not None:
@@ -260,7 +288,7 @@ def run(X, y, name):
                               cm=confusion_matrix(yte, yp).ravel().tolist())
     else:
         out['thr_oof'] = None
-    # importância (gain/split) top 8
+    # feature importance (split/gain), top 8
     imp = getattr(be, 'feature_importances_', None)
     if imp is not None:
         s = pd.Series(imp, index=X.columns).sort_values(ascending=False)

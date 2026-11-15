@@ -1,25 +1,30 @@
 """
-TCC Sepse UTI Pediátrica — VERSÃO CORRIGIDA (v2)
-=================================================
-Script separado do notebook original (notebooks/01_pipeline_agregacao_24h_48h_PT-BR.ipynb), que não foi alterado.
+Early sepsis prediction in pediatric ICU — CORRECTED PIPELINE (v2)
+==================================================================
+Standalone script. The original thesis notebook
+(notebooks/01_pipeline_agregacao_24h_48h_PT-BR.ipynb) is left untouched.
 
-Correções em relação à v1:
-  1. Remove `total_days_observed`, que usava a última data do paciente (inclusive após a sepse).
-     No lugar, entra `hours_since_admission`, calculada somente até o ponto de corte.
-  2. Remove as linhas sintéticas D-1/D-2. O rótulo é definido diretamente pela 1ª hora com SepsisLabel=1.
-  3. Mesma regra de inclusão para as duas classes: pelo menos MIN_OBS_H horas de internação e
-     pelo menos 1 medição clínica real antes do corte. Isso exclui os positivos sem nenhum dado.
-  4. Corte dos negativos pareado: sorteado com a mesma distribuição de "horas desde a admissão" dos
-     positivos, exigindo que o negativo continue observado por mais h horas (negativo verdadeiro).
-  5. Variáveis com histórico até o corte: last, mean, min, max, n medições, horas desde a última
-     medição e média nas últimas 24h.
-  6. Avaliação: threshold escolhido out-of-fold (no treino), IC 95% por bootstrap, CV estratificada
-     repetida 5x5 e validação temporal (treino nos pacientes mais antigos, teste nos mais recentes).
+Fixes relative to v1:
+  1. Drops `total_days_observed`, which used the patient's last timestamp (including after sepsis onset).
+     It is replaced by `hours_since_admission`, computed only up to the cut-off.
+  2. Drops the synthetic D-1/D-2 rows. The label comes directly from the first hour with SepsisLabel=1.
+  3. Same inclusion rule for both classes: at least MIN_OBS_H hours of stay and at least one real
+     clinical measurement before the cut-off. This removes positives with no data at all.
+  4. Matched negative cut-offs: sampled from the positives' "hours since admission" distribution, and
+     the negative must remain observed for another h hours (a true negative).
+  5. Features use history up to the cut-off only: last, mean, min, max, number of measurements,
+     hours since the last measurement, mean over the last 24h and 24h trend.
+  6. Evaluation: threshold chosen out-of-fold on the training set, 95% bootstrap CIs, repeated
+     stratified 5x5 CV and temporal validation (train on older patients, test on newer ones).
 
-Uso:  python reanalysis/02_corrected_pipeline_v2.py   (dados do Kaggle em ./Data/training_data)
-Saídas: results/results_v2.json, figures/pr_*.png, bases/base_{24,48}h_v2.csv (não versionadas)
+Usage:   python reanalysis/02_corrected_pipeline_v2.py   (Kaggle data in ./Data/training_data)
+Outputs: results/results_v2.json, figures/pr_*.png, bases/base_{24,48}h_v2.csv (not versioned)
 """
+from __future__ import annotations
+
 import os, json, warnings
+from typing import Any, Callable
+
 import numpy as np, pandas as pd
 import matplotlib
 matplotlib.use("Agg")
@@ -28,7 +33,7 @@ from sklearn.model_selection import (StratifiedKFold, RepeatedStratifiedKFold, R
                                      train_test_split, cross_val_predict, cross_val_score)
 from sklearn.metrics import (average_precision_score, roc_auc_score, precision_score, recall_score,
                              confusion_matrix, precision_recall_curve)
-from sklearn.base import clone
+from sklearn.base import BaseEstimator, clone
 from sklearn.ensemble import HistGradientBoostingClassifier
 from lightgbm import LGBMClassifier
 from xgboost import XGBClassifier
@@ -37,13 +42,15 @@ warnings.filterwarnings("ignore")
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "Data", "training_data")
 SEED = 77
-MIN_OBS_H = 6          # horas mínimas de internação antes do corte
-MIN_PRECISION = 0.25   # restrição clínica usada para escolher o threshold (igual à v1)
-N_ITER = 10            # iterações do RandomizedSearchCV (versão leve; era 20)
-MISS_DROP = 0.95       # descarta variáveis de VALOR com >=95% ausentes (contagens são mantidas)
+MIN_OBS_H = 6          # minimum hours of stay before the cut-off
+MIN_PRECISION = 0.25   # clinical constraint used to pick the threshold (same as v1)
+N_ITER = 10            # RandomizedSearchCV iterations (light version; was 20)
+MISS_DROP = 0.95       # drop VALUE features with >= 95% missing (count features are kept)
 rng_global = np.random.default_rng(SEED)
 
-LIMITS = {'temperature': (32.0, 43.0), 'hematocrit': (12.0, 70.0), 'base_excess_venous': (-30.0, 25.0),
+# Physiological plausibility limits; values outside the range become NaN (same limits as v1).
+LIMITS: dict[str, tuple[float, float]] = {
+          'temperature': (32.0, 43.0), 'hematocrit': (12.0, 70.0), 'base_excess_venous': (-30.0, 25.0),
           'base_excess_arterial': (-30.0, 25.0), 'phosphate': (0.1, 15.0), 'potassium': (1.5, 9.5), 'bilirubin': (0.0, 50.0),
           'neutrophil_ap': (0.0, 80.0), 'bicarbonate_arterial': (2.0, 45.0), 'glucose': (5.0, 800.0), 'calcium': (4.0, 18.0),
           'chloride': (70.0, 130.0), 'sodium': (105.0, 185.0), 'c_reactive_protein': (0.0, 600.0),
@@ -58,7 +65,8 @@ LIMITS = {'temperature': (32.0, 43.0), 'hematocrit': (12.0, 70.0), 'base_excess_
           'heart_rate': (20.0, 300.0), 'oxygen_periphery': (50.0, 102.0), 'oxygen_total': (50.0, 102.0),
           'l_pupil_diameter': (0.5, 10.0), 'r_pupil_diameter': (0.5, 10.0), 'glasgow': (3.0, 15.0)}
 
-LAB_RENAME = {
+# Kaggle column names -> short snake_case names
+LAB_RENAME: dict[str, str] = {
     'Bilirubin.total [Moles/volume] in Serum or Plasma': 'bilirubin', 'C reactive protein [Mass/volume] in Serum or Plasma': 'c_reactive_protein',
     'Procalcitonin [Mass/volume] in Serum or Plasma': 'procalcitonin', 'Lactate [Moles/volume] in Blood': 'lactate',
     'Creatinine [Mass/volume] in Blood': 'creatinine', 'Partial thromboplastin time': 'thromboplastin_time',
@@ -76,15 +84,24 @@ LAB_RENAME = {
     'Bilirubin measurement': 'bilirubin_measurement', ' activated': 'activated', 'Total white blood count': 'white_blood',
     'Platelet count': 'platelet', 'Blood venous pH': 'venous_ph', 'D-dimer level': 'd_dimer_level', 'Blood arterial pH': 'arterial_ph',
     'Ionised calcium measurement': 'ionised_calcium'}
-MEDS_RENAME = {'Systolic blood pressure': 'systolic_pressure', 'Diastolic blood pressure': 'diastolic_pressure',
+MEDS_RENAME: dict[str, str] = {
+               'Systolic blood pressure': 'systolic_pressure', 'Diastolic blood pressure': 'diastolic_pressure',
                'Body temperature': 'temperature', 'Respiratory rate': 'resp_rate', 'Heart rate': 'heart_rate',
                'Measurement of oxygen saturation at periphery': 'oxygen_periphery',
                'Oxygen/Gas total [Pure volume fraction] Inhaled gas': 'oxygen_total'}
 
 
-# ---------------------------------------------------------------- 1. dados horários
-def load_hourly():
-    rd = lambda f: pd.read_csv(os.path.join(DATA, f)).drop_duplicates()
+# ---------------------------------------------------------------- 1. hourly data
+def load_hourly() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, list[str]]:
+    """Load and clean the hourly Kaggle tables.
+
+    Returns:
+        clin: one row per (person_id, datetime) with all clinical values (labs, vitals, observations).
+        demo: one row per patient with age in months and sex.
+        tl: per-patient timeline with admission, last observation and sepsis onset (NaT if none).
+        value_cols: names of the clinical value columns in `clin`.
+    """
+    rd: Callable[[str], pd.DataFrame] = lambda f: pd.read_csv(os.path.join(DATA, f)).drop_duplicates()
     lab = rd('SepsisLabel_train.csv')
     labs = rd('measurement_lab_train.csv').rename(columns=LAB_RENAME)
     meds = rd('measurement_meds_train.csv').rename(columns=MEDS_RENAME)
@@ -100,13 +117,13 @@ def load_hourly():
         'Arterial pulse pressure': 'art_pressure'})
     obs['capillary'] = obs['capillary'].map({'Normal capillary filling': 'normal', 'Increased capillary filling time': 'increased',
                                              'Decreased capillary filling time': 'decreased'})
-    # categóricas -> indicadores 0/1, NaN quando a observação não foi feita naquela hora
+    # categorical -> 0/1 indicators; NaN when the observation was not taken in that hour
     for col in ['capillary', 'pulse', 'art_pressure']:
         dummies = pd.get_dummies(obs[col], prefix=col, dtype=float)
         dummies[obs[col].isna()] = np.nan
         obs = pd.concat([obs.drop(columns=col), dummies], axis=1)
 
-    keep = lambda d: d.drop(columns=[c for c in ['visit_occurrence_id'] if c in d.columns])
+    keep: Callable[[pd.DataFrame], pd.DataFrame] = lambda d: d.drop(columns=[c for c in ['visit_occurrence_id'] if c in d.columns])
     clin = (keep(labs).merge(keep(meds), on=['person_id', 'datetime'], how='outer')
             .merge(keep(obs), on=['person_id', 'datetime'], how='outer'))
     clin = clin.groupby(['person_id', 'datetime'], as_index=False).mean(numeric_only=True)
@@ -121,7 +138,7 @@ def load_hourly():
     demo = pd.DataFrame({'person_id': demo['person_id'], 'age_in_months': demo['age_in_months'],
                          'male': (demo['gender'] == 'MALE').astype(int)})
 
-    # linha do tempo por paciente (a partir da tabela de rótulos, que é horária)
+    # per-patient timeline (built from the label table, which is hourly)
     lab = lab.sort_values(['person_id', 'datetime'])
     tl = lab.groupby('person_id').agg(admission=('datetime', 'min'), last_obs=('datetime', 'max')).reset_index()
     onset = lab[lab['SepsisLabel'] == 1].groupby('person_id')['datetime'].min().rename('onset').reset_index()
@@ -129,27 +146,35 @@ def load_hourly():
     return clin, demo, tl, value_cols
 
 
-# ---------------------------------------------------------------- 2. pontos de corte
-def make_cutoffs(tl, h, seed):
+# ---------------------------------------------------------------- 2. cut-off points
+def make_cutoffs(tl: pd.DataFrame, h: int, seed: int) -> pd.DataFrame:
+    """Choose one prediction cut-off per patient for an h-hour horizon.
+
+    Positives: cut-off = onset - h (kept only if it falls at least MIN_OBS_H hours after admission).
+    Negatives: cut-off sampled from the positives' hours-since-admission distribution, constrained so the
+    patient is still observed for another h hours afterwards (falls back to uniform if no match).
+
+    Returns a frame with person_id, admission, cutoff and label.
+    """
     rng = np.random.default_rng(seed)
     pos = tl[tl['onset'].notna()].copy()
     pos['cutoff'] = pos['onset'] - pd.Timedelta(hours=h)
     pos['label'] = 1
     pos = pos[pos['cutoff'] >= pos['admission'] + pd.Timedelta(hours=MIN_OBS_H)]
-    ref_h = ((pos['cutoff'] - pos['admission']).dt.total_seconds() / 3600).values  # distribuição de referência
+    ref_h = ((pos['cutoff'] - pos['admission']).dt.total_seconds() / 3600).values  # reference distribution
 
     neg = tl[tl['onset'].isna()].copy()
-    max_h = (neg['last_obs'] - neg['admission']).dt.total_seconds() / 3600 - h   # precisa observar mais h horas
-    cut_h = []
+    max_h = (neg['last_obs'] - neg['admission']).dt.total_seconds() / 3600 - h   # must stay observed h more hours
+    cut_h: list[float] = []
     for mh in max_h.values:
-        if not np.isfinite(mh) or mh < MIN_OBS_H:   # datas inválidas ou internação curta demais
+        if not np.isfinite(mh) or mh < MIN_OBS_H:   # invalid dates or stay too short
             cut_h.append(np.nan); continue
         draw = np.nan
-        for _ in range(30):                       # pareamento pela distribuição dos positivos
+        for _ in range(30):                       # match the positives' distribution
             c = rng.choice(ref_h)
             if MIN_OBS_H <= c <= mh:
                 draw = c; break
-        if np.isnan(draw):                        # fallback: uniforme no intervalo viável
+        if np.isnan(draw):                        # fallback: uniform over the feasible interval
             draw = rng.uniform(MIN_OBS_H, mh)
         cut_h.append(draw)
     neg['cutoff'] = neg['admission'] + pd.to_timedelta(cut_h, unit='h')
@@ -158,25 +183,36 @@ def make_cutoffs(tl, h, seed):
     return pd.concat([pos, neg], ignore_index=True)[['person_id', 'admission', 'cutoff', 'label']]
 
 
-# ---------------------------------------------------------------- 3. agregação até o corte
-def build_features(clin, demo, cuts, value_cols):
+# ---------------------------------------------------------------- 3. aggregation up to the cut-off
+def build_features(clin: pd.DataFrame, demo: pd.DataFrame, cuts: pd.DataFrame,
+                   value_cols: list[str]) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
+    """Summarize each patient's history between admission and cut-off into one row.
+
+    Only measurements with datetime <= cutoff are used, so no feature can see the future.
+    Patients without any clinical measurement before the cut-off are dropped (same rule for both classes).
+
+    Returns:
+        X: feature matrix indexed by person_id.
+        y: binary label (1 = sepsis h hours after the cut-off).
+        meta: the cut-off timestamp per patient (used for the temporal split).
+    """
     d = clin.merge(cuts, on='person_id', how='inner')
     d = d[(d['datetime'] >= d['admission']) & (d['datetime'] <= d['cutoff'])].sort_values(['person_id', 'datetime'])
     g = d.groupby('person_id')
-    feats = {}
-    last = g[value_cols].last()                 # last() ignora NaN -> último valor válido (forward fill implícito)
+    feats: dict[str, pd.Series] = {}
+    last = g[value_cols].last()                 # last() skips NaN -> last valid value (implicit forward fill)
     feats.update({f'{c}_last': last[c] for c in value_cols})
     for fn in ('mean', 'min', 'max'):
         a = g[value_cols].agg(fn)
         feats.update({f'{c}_{fn}': a[c] for c in value_cols})
     cnt = g[value_cols].count()
     feats.update({f'{c}_n': cnt[c] for c in value_cols})
-    # horas desde a última medição de cada variável
+    # hours since the last measurement of each variable
     cutoff_by_pid = d.groupby('person_id')['cutoff'].first()
     for c in value_cols:
         lt = d.loc[d[c].notna()].groupby('person_id')['datetime'].max()
         feats[f'{c}_h_since'] = ((cutoff_by_pid - lt).dt.total_seconds() / 3600).reindex(cutoff_by_pid.index)
-    # média nas últimas 24h e tendência (média 24h - média geral)
+    # mean over the last 24h and trend (24h mean - overall mean)
     d24 = d[d['datetime'] > d['cutoff'] - pd.Timedelta(hours=24)]
     m24 = d24.groupby('person_id')[value_cols].mean()
     for c in value_cols:
@@ -187,18 +223,18 @@ def build_features(clin, demo, cuts, value_cols):
     base = cuts.set_index('person_id')
     X['hours_since_admission'] = ((base.loc[X.index, 'cutoff'] - base.loc[X.index, 'admission']).dt.total_seconds() / 3600).values
     X = X.join(demo.set_index('person_id'), how='left')
-    # pacientes sem nenhuma medição clínica antes do corte ficam de fora (mesma regra para as duas classes)
+    # patients with no clinical measurement before the cut-off never enter X (same rule for both classes)
     y = base.loc[X.index, 'label']
     meta = base.loc[X.index, ['cutoff']]
-    # descarta variáveis de valor quase sempre ausentes (mantém as contagens _n)
+    # drop value features that are almost always missing (count features `_n` are kept)
     miss = X.isna().mean()
     X = X.drop(columns=[c for c in X.columns if miss[c] >= MISS_DROP and not c.endswith('_n')])
     return X, y.astype(int), meta
 
 
-# ---------------------------------------------------------------- 4. modelos
+# ---------------------------------------------------------------- 4. models
 cw = [{0: 1, 1: 10}, {0: 1, 1: 30}, {0: 1, 1: 50}, {0: 1, 1: 100}]
-PARAMS = {
+PARAMS: dict[str, dict[str, list[Any]]] = {
     'LGBM': dict(n_estimators=[200, 400, 800], num_leaves=[7, 15, 31], learning_rate=[0.01, 0.03, 0.05],
                  subsample=[0.6, 0.8, 1.0], subsample_freq=[1], colsample_bytree=[0.3, 0.5, 0.8],
                  min_child_samples=[5, 10, 20, 40], reg_lambda=[0, 1, 5, 10], class_weight=cw),
@@ -210,15 +246,21 @@ PARAMS = {
 }
 
 
-def models():
-    # versão leve: HGB removido (pior modelo em todos os cenários da v1) e 1 thread por modelo,
-    # deixando o paralelismo só para a validação cruzada (evita disputa de threads)
+def models() -> dict[str, BaseEstimator]:
+    """Candidate models.
+
+    Light version: HGB removed (worst model in every v1 scenario) and one thread per model,
+    leaving parallelism to cross-validation only (avoids thread contention).
+    """
     return {'LGBM': LGBMClassifier(objective='binary', random_state=SEED, n_jobs=1, verbose=-1),
             'XGB': XGBClassifier(objective='binary:logistic', eval_metric='aucpr', random_state=SEED, n_jobs=1)}
 
 
-def thr_rule(y, p, min_prec=MIN_PRECISION):
-    """maior recall com precisão >= min_prec (mesma regra da v1)"""
+def thr_rule(y: np.ndarray | pd.Series, p: np.ndarray, min_prec: float = MIN_PRECISION) -> float | None:
+    """Return the threshold with the highest recall among those with precision >= min_prec (same rule as v1).
+
+    Returns None if no threshold reaches the required precision.
+    """
     prec, rec, thr = precision_recall_curve(y, p)
     ok = np.where(prec[:-1] >= min_prec)[0]
     if len(ok) == 0:
@@ -227,7 +269,9 @@ def thr_rule(y, p, min_prec=MIN_PRECISION):
     return float(thr[best])
 
 
-def boot_ci(y, p, fn, n=2000):
+def boot_ci(y: np.ndarray | pd.Series, p: np.ndarray, fn: Callable[[np.ndarray, np.ndarray], float],
+            n: int = 2000) -> list[float]:
+    """95% percentile bootstrap CI of metric `fn` (resamples patients; skips single-class resamples)."""
     rng = np.random.default_rng(SEED); y = np.asarray(y); p = np.asarray(p); v = []
     for _ in range(n):
         i = rng.integers(0, len(y), len(y))
@@ -236,7 +280,8 @@ def boot_ci(y, p, fn, n=2000):
     return [round(float(np.percentile(v, 2.5)), 3), round(float(np.percentile(v, 97.5)), 3)]
 
 
-def metrics_at(y, p, t):
+def metrics_at(y: np.ndarray | pd.Series, p: np.ndarray, t: float) -> dict[str, Any]:
+    """Confusion matrix and clinical metrics at threshold t."""
     yp = (p >= t).astype(int)
     tn, fp, fn, tp = confusion_matrix(y, yp, labels=[0, 1]).ravel()
     return dict(threshold=round(t, 5), recall=round(tp / (tp + fn), 3) if tp + fn else None,
@@ -245,7 +290,11 @@ def metrics_at(y, p, t):
                 cm=dict(TN=int(tn), FP=int(fp), FN=int(fn), TP=int(tp)))
 
 
-def tune(Xtr, ytr):
+def tune(Xtr: pd.DataFrame, ytr: pd.Series) -> tuple[dict[str, Any], str | None, BaseEstimator | None]:
+    """Randomized search (5-fold stratified CV, average precision) for each model.
+
+    Returns per-model CV scores and params, plus the name and fitted estimator of the best model.
+    """
     cv = StratifiedKFold(5, shuffle=True, random_state=SEED)
     out, best = {}, (-1, None, None)
     for nm, m in models().items():
@@ -253,8 +302,8 @@ def tune(Xtr, ytr):
                                random_state=SEED, error_score=np.nan)
         try:
             s.fit(Xtr, ytr)
-        except ValueError as e:              # um modelo falhar não derruba a comparação
-            print(f'  [aviso] {nm} falhou: {str(e).splitlines()[0][:120]}', flush=True)
+        except ValueError as e:              # one model failing must not break the comparison
+            print(f'  [warning] {nm} failed: {str(e).splitlines()[0][:120]}', flush=True)
             continue
         out[nm] = dict(cv_ap=round(float(s.best_score_), 3), params=s.best_params_)
         if s.best_score_ > best[0]:
@@ -262,8 +311,14 @@ def tune(Xtr, ytr):
     return out, best[1], best[2]
 
 
-def evaluate(Xtr, ytr, Xte, yte, tag, figdir):
-    # colunas totalmente vazias ou constantes no treino (acontece na divisão temporal) são removidas
+def evaluate(Xtr: pd.DataFrame, ytr: pd.Series, Xte: pd.DataFrame, yte: pd.Series, tag: str,
+             figdir: str) -> tuple[dict[str, Any], BaseEstimator, str, dict[str, Any]]:
+    """Tune on train, pick the threshold out-of-fold on train, then evaluate once on test.
+
+    Saves the test precision-recall curve to `figdir` and returns the results dict, the best fitted
+    estimator, its name and the per-model summary.
+    """
+    # columns that are fully empty or constant on train (happens in the temporal split) are dropped
     keep = [c for c in Xtr.columns if Xtr[c].nunique(dropna=True) > 1]
     Xtr, Xte = Xtr[keep], Xte[keep]
     per_model, bn, be = tune(Xtr, ytr)
@@ -271,7 +326,7 @@ def evaluate(Xtr, ytr, Xte, yte, tag, figdir):
     oof = cross_val_predict(clone(be), Xtr, ytr, cv=cv, method='predict_proba')[:, 1]
     t = thr_rule(ytr, oof)
     p = be.predict_proba(Xte)[:, 1]
-    for nm in per_model:   # PR-AUC no teste de cada modelo (só informativo; a escolha foi pela CV)
+    for nm in per_model:   # test PR-AUC of every model (informative only; selection was done on CV)
         m = clone(models()[nm]).set_params(**per_model[nm]['params']).fit(Xtr, ytr)
         per_model[nm]['test_ap'] = round(float(average_precision_score(yte, m.predict_proba(Xte)[:, 1])), 3)
     res = dict(tag=tag, n_train=int(len(ytr)), pos_train=int(ytr.sum()), n_test=int(len(yte)), pos_test=int(yte.sum()),
@@ -283,7 +338,7 @@ def evaluate(Xtr, ytr, Xte, yte, tag, figdir):
     if imp is not None:
         s = pd.Series(imp, index=Xtr.columns).sort_values(ascending=False)
         res['top_features'] = [[k, round(float(v), 4)] for k, v in s.head(15).items()]
-    # figura: curva PR
+    # figure: PR curve (axis labels kept in Portuguese to match the published figures)
     pr, rc, _ = precision_recall_curve(yte, p)
     plt.figure(figsize=(5.5, 4.2))
     plt.plot(rc, pr, label=f'{bn}  PR-AUC={res["test_ap"]:.3f}')
@@ -294,7 +349,8 @@ def evaluate(Xtr, ytr, Xte, yte, tag, figdir):
     return res, be, bn, per_model
 
 
-def repeated_cv(X, y, model):
+def repeated_cv(X: pd.DataFrame, y: pd.Series, model: BaseEstimator) -> dict[str, float]:
+    """Repeated stratified 5x5 CV of average precision on the full dataset (fixed hyperparameters)."""
     rcv = RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=SEED)
     sc = cross_val_score(clone(model), X, y, cv=rcv, scoring='average_precision', n_jobs=6)
     return dict(mean=round(float(sc.mean()), 3), sd=round(float(sc.std()), 3),
@@ -306,8 +362,8 @@ if __name__ == "__main__":
     figdir = os.path.join(HERE, 'figures'); os.makedirs(figdir, exist_ok=True)
     os.makedirs(os.path.join(HERE, 'bases'), exist_ok=True); os.makedirs(os.path.join(HERE, 'results'), exist_ok=True)
     clin, demo, tl, value_cols = load_hourly()
-    print(f'pacientes: {len(tl)} | com sepse: {tl.onset.notna().sum()} | variáveis clínicas: {len(value_cols)}', flush=True)
-    results = {'config': dict(SEED=SEED, MIN_OBS_H=MIN_OBS_H, MIN_PRECISION=MIN_PRECISION, N_ITER=N_ITER, MISS_DROP=MISS_DROP)}
+    print(f'patients: {len(tl)} | with sepsis: {tl.onset.notna().sum()} | clinical variables: {len(value_cols)}', flush=True)
+    results: dict[str, Any] = {'config': dict(SEED=SEED, MIN_OBS_H=MIN_OBS_H, MIN_PRECISION=MIN_PRECISION, N_ITER=N_ITER, MISS_DROP=MISS_DROP)}
     for h in (24, 48):
         cuts = make_cutoffs(tl, h, SEED + h)
         X, y, meta = build_features(clin, demo, cuts, value_cols)
@@ -317,16 +373,16 @@ if __name__ == "__main__":
         print(f'\n=== {h}h: {info}', flush=True)
         pd.concat([X, y.rename('label'), meta], axis=1).to_csv(os.path.join(HERE, 'bases', f'base_{h}h_v2.csv'))
 
-        # (a) split estratificado 70/30 (mesmo desenho da v1)
+        # (a) stratified 70/30 split (same design as v1)
         Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=SEED, stratify=y)
         r_split, best_est, bn, per_model = evaluate(Xtr, ytr, Xte, yte, f'{h}h_split', figdir)
         print(json.dumps({k: r_split[k] for k in ('best_model', 'test_ap', 'test_ap_ci', 'test_roc', 'operating_point_oof')}), flush=True)
 
-        # (b) CV repetida 5x5 em toda a base, com os hiperparâmetros escolhidos
+        # (b) repeated 5x5 CV on the whole dataset, with the selected hyperparameters
         rcv = repeated_cv(X, y, clone(models()[bn]).set_params(**per_model[bn]['params']))
         print('repeated CV:', rcv, flush=True)
 
-        # (c) validação temporal: 70% mais antigos (pela data do corte) -> treino; 30% mais recentes -> teste
+        # (c) temporal validation: oldest 70% (by cut-off date) -> train; newest 30% -> test
         order = meta['cutoff'].sort_values()
         split_at = order.iloc[int(len(order) * 0.7)]
         tr_idx = meta.index[meta['cutoff'] < split_at]; te_idx = meta.index[meta['cutoff'] >= split_at]
