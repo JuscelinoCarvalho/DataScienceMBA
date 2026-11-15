@@ -14,7 +14,8 @@ Author: **Juscelino Alves de Carvalho** · Advisor: **Prof. Francisco Louzada**
 > **Read this first.** This repository has **two layers**:
 >
 > 1. **The original thesis (v1, 2025).** I built it while I was still learning data science. It is published
->    **exactly as submitted**, to show where I started.
+>    **as submitted**, to show where I started. The only change is the corrected operating-point numbers on
+>    p. 32 (flaw #4 below).
 > 2. **A critical reanalysis (v2).** After gaining more experience, I went back to the project and **found
 >    methodological flaws that inflated the results**: future information leaking into the features (*data
 >    leakage*) and an asymmetric label design between classes. I measured the effect of each flaw, rebuilt the
@@ -65,7 +66,7 @@ Author: **Juscelino Alves de Carvalho** · Advisor: **Prof. Francisco Louzada**
 | 1 | **Leaky `total_days_observed`.** Computed from the patient's **last timestamp in the whole record**, including after sepsis | The model "knew" how long the patient would still stay in the ICU, which is unknown at prediction time. It was the **#1 feature** of the 48h model | 0.75 → 0.64 | Removed. Replaced by `hours_since_admission`, computed **only up to the cut-off** |
 | 2 | **Asymmetric cut-off.** Negatives summarized **up to discharge**, positives **before sepsis** | The model learned "early stay vs. end of stay" rather than "will develop sepsis vs. will not" | 0.64 → 0.28 | Negative cut-offs sampled to match the positives' **hours-since-admission distribution** |
 | 3 | **Synthetic D-1/D-2 rows.** 17 (24h) and 26 (48h) of the 82 positives had **no clinical data at all** before the cut-off | "Empty" positives with a distinctive missingness pattern that is easy to recognize | not isolated | No synthetic rows. **Same inclusion rule** for both classes: ≥ 6h of stay and at least one real measurement |
-| 4 | **Notebook bug (cell 70).** Recall and precision printed with an index left over from the 24h curve | The Portuguese thesis (p. 32) reports *Recall 0.72 / Precision 0.69*, inconsistent with the confusion matrix | — | Fixed in notebook 01, with the old lines kept as comments. Correct values: recall 0.84 and precision 0.25 |
+| 4 | **Notebook bug (cell 70).** Recall and precision printed with an index left over from the 24h curve | The submitted Portuguese thesis (p. 32) reported *Recall 0.72 / Precision 0.69*, inconsistent with the confusion matrix | — | Fixed in notebook 01 (old lines kept as comments) and in the thesis PDF published here. Correct values: recall 0.84 and precision 0.25 |
 | 5 | **Fragile evaluation.** A single split, 25 positives in the test set and no confidence interval | With so few positives, one number looks more precise than it is (real CI: 0.58–0.88) | — | Bootstrap, repeated 5×5 CV and temporal validation |
 
 > **How I found it:** the top feature being "total observation time" was the first red flag. An
@@ -189,8 +190,8 @@ Models `XGBClassifier`, `HistGradientBoostingClassifier` and `LGBMClassifier`, t
 | 48h | LightGBM | 0.574 | 0.751 |
 
 48h operating point on the test set: TN 701 / FP 62 / FN 4 / TP 21, i.e. recall 0.84, precision 0.25 and
-ROC-AUC 0.96. Page 32 of the Portuguese thesis shows *Recall 0.72 / Precision 0.69* because of the cell 70
-bug (flaw #4 above).
+ROC-AUC 0.96. The submitted Portuguese thesis showed *Recall 0.72 / Precision 0.69* on p. 32 because of the
+cell 70 bug (flaw #4 above). The PDF published here already has the corrected values.
 
 ### Proposed real-world use
 

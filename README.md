@@ -14,7 +14,8 @@ Autor: **Juscelino Alves de Carvalho** · Orientador: **Prof. Francisco Louzada*
 > **Leia primeiro.** Este repositório tem **duas camadas**:
 >
 > 1. **O TCC original (v1, 2025).** Fiz este trabalho enquanto ainda aprendia Ciência de Dados. Ele está
->    publicado **exatamente como foi entregue**, para mostrar de onde parti.
+>    publicado **como foi entregue**, para mostrar de onde parti. A única alteração foi a correção dos
+>    números do ponto de operação na p. 32 (falha nº 4 abaixo).
 > 2. **A reanálise crítica (v2).** Depois de ganhar experiência, voltei ao projeto e **encontrei falhas
 >    metodológicas que inflavam os resultados**: vazamento de informação do futuro (*data leakage*) e um
 >    desenho de rótulos desigual entre as classes. Quantifiquei o efeito de cada falha, reconstruí o pipeline
@@ -65,7 +66,7 @@ Autor: **Juscelino Alves de Carvalho** · Orientador: **Prof. Francisco Louzada*
 | 1 | **`total_days_observed` com vazamento.** Calculada com a **última data de todo o histórico** do paciente, inclusive depois da sepse | O modelo "sabia" quanto tempo o paciente ainda ficaria internado, uma informação indisponível no momento da predição. Era a **feature nº 1** do modelo de 48h | 0,75 → 0,64 | Removida. No lugar, `hours_since_admission`, calculada **só até o corte** |
 | 2 | **Corte desigual entre as classes.** Negativos resumidos **até o fim da internação**, positivos **antes da sepse** | O modelo aprendia "início de internação × fim de internação", e não "vai ter sepse × não vai" | 0,64 → 0,28 | Corte dos negativos sorteado com a **mesma distribuição de horas desde a admissão** dos positivos |
 | 3 | **Linhas sintéticas D-1/D-2.** 17 (24h) e 26 (48h) dos 82 positivos **não tinham nenhum dado clínico** antes do corte | Positivos "vazios" com um padrão de ausência próprio, fácil de reconhecer | não medido isoladamente | Sem linhas sintéticas. **Mesma regra de inclusão** para as duas classes: pelo menos 6h de internação e alguma medição real |
-| 4 | **Bug no notebook (célula 70).** Recall e precisão impressos com um índice herdado da curva de 24h | A monografia (p. 32) informa *Recall 0,72 / Precisão 0,69*, valores inconsistentes com a matriz de confusão | — | Corrigido no notebook 01, com as linhas antigas mantidas comentadas. Valores certos: recall 0,84 e precisão 0,25 |
+| 4 | **Bug no notebook (célula 70).** Recall e precisão impressos com um índice herdado da curva de 24h | A versão entregue da monografia (p. 32) informava *Recall 0,72 / Precisão 0,69*, valores inconsistentes com a matriz de confusão | — | Corrigido no notebook 01 (linhas antigas mantidas comentadas) e no PDF da monografia publicado aqui. Valores certos: recall 0,84 e precisão 0,25 |
 | 5 | **Avaliação frágil.** Um único split, com 25 positivos no teste e sem intervalo de confiança | Com tão poucos positivos, um número isolado parece mais preciso do que é (IC real: 0,58 a 0,88) | — | *Bootstrap*, CV repetida 5×5 e validação temporal |
 
 > **Como encontrei as falhas:** a *feature* mais importante ser "tempo total de observação" foi o primeiro
@@ -188,8 +189,8 @@ Modelos `XGBClassifier`, `HistGradientBoostingClassifier` e `LGBMClassifier`, ot
 | 48h | LightGBM | 0,574 | 0,751 |
 
 Ponto de operação 48h no teste: VN 701 / FP 62 / FN 4 / VP 21, ou seja, recall 0,84, precisão 0,25 e
-ROC-AUC 0,96. A p. 32 da monografia traz *Recall 0,72 / Precisão 0,69* por causa do bug da célula 70 (falha
-nº 4 acima).
+ROC-AUC 0,96. A versão entregue da monografia trazia na p. 32 *Recall 0,72 / Precisão 0,69*, por causa do bug
+da célula 70 (falha nº 4 acima). O PDF publicado aqui já traz os valores corrigidos.
 
 ### Uso proposto na prática
 
