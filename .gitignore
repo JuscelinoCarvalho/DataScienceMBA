@@ -1,0 +1,18 @@
+# Dados do Kaggle (não redistribuíveis) / Kaggle data (not redistributable)
+Data/
+*.csv
+
+# Modelos treinados / trained models
+*.pkl
+*.joblib
+
+# Python / Jupyter
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini

@@ -1,0 +1,17 @@
+pandas
+numpy
+scikit-learn
+lightgbm
+xgboost
+catboost
+scikit-optimize
+shap
+matplotlib
+seaborn
+plotly
+plotnine
+patchworklib
+phik
+ydata-profiling
+joblib
+jupyterlab
