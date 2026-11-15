@@ -107,6 +107,11 @@ at least 25% precision.
 | **Actual: no sepsis** | 701 (TN) | 62 (FP) |
 | **Actual: sepsis** | 4 (FN) | **21 (TP)** |
 
+> 📝 **Erratum:** the Portuguese monograph (p. 32) reports *Recall 0.72 / Precision 0.69* at this point.
+> Those values came from a notebook cell that read the metrics from an index left over from the 24h curve.
+> The correct values, consistent with the confusion matrix, are shown above. Notebook 01 and the English PDF
+> have already been corrected, and the old lines are kept commented out in the notebook.
+
 The model detected **21 of 25 sepsis cases (84% recall)** with 92% specificity and a ROC-AUC of 0.96. On
 average there are about 3 false alerts per true case, a cost considered acceptable in early screening, where
 **a false negative costs far more than an extra alert**.

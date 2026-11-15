@@ -109,6 +109,11 @@ maximizar o *recall* com precisão mínima de 25%.
 | **Real: sem sepse** | 701 (VN) | 62 (FP) |
 | **Real: sepse** | 4 (FN) | **21 (VP)** |
 
+> 📝 **Errata:** a monografia em português (p. 32) informa *Recall 0,72 / Precisão 0,69* neste ponto. Esses
+> valores vinham de uma célula do notebook que lia as métricas de um índice herdado da curva de 24h. Os valores
+> corretos, consistentes com a matriz de confusão, estão acima. O notebook 01 e o PDF em inglês já foram
+> corrigidos, e as linhas antigas foram mantidas comentadas no notebook.
+
 O modelo detectou **21 de 25 casos de sepse (recall de 84%)** com especificidade de 92% e ROC-AUC de 0,96.
 Em média, há cerca de 3 alertas falsos para cada caso verdadeiro, um custo considerado aceitável em triagem
 precoce, onde **um falso negativo custa muito mais do que um alerta extra**.
