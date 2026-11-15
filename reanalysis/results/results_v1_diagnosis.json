@@ -1,0 +1,532 @@
+[
+ {
+  "name": "A_original_24h",
+  "n_patients": 2625,
+  "n_pos": 82,
+  "n_test_pos": 25,
+  "n_features": 105,
+  "per_model": {
+   "LGBM": {
+    "cv_mean": 0.3628316191908885,
+    "cv_median": 0.33782021247308547,
+    "test_ap": 0.49189493351335656
+   },
+   "HIST": {
+    "cv_mean": 0.13031243635710038,
+    "cv_median": 0.13044710366193388,
+    "test_ap": 0.1774431044379664
+   },
+   "XGB": {
+    "cv_mean": 0.317130943349261,
+    "cv_median": 0.29064323234183653,
+    "test_ap": 0.4300889315836587
+   }
+  },
+  "best_model": "LGBM",
+  "test_ap": 0.49189493351335656,
+  "test_ap_ci": [
+   0.2994328127826294,
+   0.6897380697389387
+  ],
+  "test_roc": 0.8855570117955439,
+  "thr_on_test": {
+   "t": 0.053526763381690844,
+   "recall": 0.6,
+   "precision": 0.2542372881355932,
+   "cm": [
+    719,
+    44,
+    10,
+    15
+   ]
+  },
+  "thr_oof": {
+   "t": 0.13406703351675836,
+   "recall": 0.56,
+   "precision": 0.3783783783783784,
+   "cm": [
+    740,
+    23,
+    11,
+    14
+   ]
+  },
+  "top_features": [
+   [
+    "age_in_months",
+    2169.0
+   ],
+   [
+    "c_reactive_protein_last",
+    1082.0
+   ],
+   [
+    "temperature_last",
+    1046.0
+   ],
+   [
+    "neutrophil_ap_last",
+    1017.0
+   ],
+   [
+    "hematocrit_last",
+    865.0
+   ],
+   [
+    "carbon_dioxide_venous_last",
+    568.0
+   ],
+   [
+    "lactate_last",
+    565.0
+   ],
+   [
+    "potassium_last",
+    540.0
+   ]
+  ],
+  "positives_only_synthetic_rows": 17
+ },
+ {
+  "name": "A_original_48h",
+  "n_patients": 2625,
+  "n_pos": 82,
+  "n_test_pos": 25,
+  "n_features": 106,
+  "per_model": {
+   "LGBM": {
+    "cv_mean": 0.6100013873995692,
+    "cv_median": 0.6166304138414355,
+    "test_ap": 0.7514624713125385
+   },
+   "HIST": {
+    "cv_mean": 0.38498315252797066,
+    "cv_median": 0.37498637652575284,
+    "test_ap": 0.5209739717813483
+   },
+   "XGB": {
+    "cv_mean": 0.5851156961781482,
+    "cv_median": 0.5247061210174502,
+    "test_ap": 0.7143355839615039
+   }
+  },
+  "best_model": "LGBM",
+  "test_ap": 0.7514624713125385,
+  "test_ap_ci": [
+   0.577806278901107,
+   0.8847495068879159
+  ],
+  "test_roc": 0.9593184796854521,
+  "thr_on_test": {
+   "t": 0.01250625312656328,
+   "recall": 0.84,
+   "precision": 0.25,
+   "cm": [
+    700,
+    63,
+    4,
+    21
+   ]
+  },
+  "thr_oof": {
+   "t": 0.023511755877938967,
+   "recall": 0.8,
+   "precision": 0.3125,
+   "cm": [
+    719,
+    44,
+    5,
+    20
+   ]
+  },
+  "top_features": [
+   [
+    "total_days_observed",
+    1593.0
+   ],
+   [
+    "age_in_months",
+    1079.0
+   ],
+   [
+    "neutrophil_ap_last",
+    1000.0
+   ],
+   [
+    "c_reactive_protein_last",
+    885.0
+   ],
+   [
+    "temperature_last",
+    736.0
+   ],
+   [
+    "chloride_last",
+    576.0
+   ],
+   [
+    "hematocrit_last",
+    568.0
+   ],
+   [
+    "glasgow_last",
+    504.0
+   ]
+  ],
+  "rank_total_days_observed": 1,
+  "positives_only_synthetic_rows": 26
+ },
+ {
+  "name": "B_24h_com_total_days",
+  "n_patients": 2625,
+  "n_pos": 82,
+  "n_test_pos": 25,
+  "n_features": 106,
+  "per_model": {
+   "LGBM": {
+    "cv_mean": 0.5161754358105398,
+    "cv_median": 0.4615844788370228,
+    "test_ap": 0.6232673703162777
+   },
+   "HIST": {
+    "cv_mean": 0.3066277989069101,
+    "cv_median": 0.23353728959421427,
+    "test_ap": 0.3803550870457318
+   },
+   "XGB": {
+    "cv_mean": 0.4884550219943633,
+    "cv_median": 0.4289168162300333,
+    "test_ap": 0.5627215602648201
+   }
+  },
+  "best_model": "LGBM",
+  "test_ap": 0.6232673703162777,
+  "test_ap_ci": [
+   0.4402203437700919,
+   0.7964540748868862
+  ],
+  "test_roc": 0.9380340760157274,
+  "thr_on_test": {
+   "t": 0.051525762881440715,
+   "recall": 0.64,
+   "precision": 0.25,
+   "cm": [
+    715,
+    48,
+    9,
+    16
+   ]
+  },
+  "thr_oof": {
+   "t": 0.028014007003501748,
+   "recall": 0.72,
+   "precision": 0.22784810126582278,
+   "cm": [
+    702,
+    61,
+    7,
+    18
+   ]
+  },
+  "top_features": [
+   [
+    "total_days_observed",
+    1569.0
+   ],
+   [
+    "age_in_months",
+    1091.0
+   ],
+   [
+    "neutrophil_ap_last",
+    968.0
+   ],
+   [
+    "c_reactive_protein_last",
+    889.0
+   ],
+   [
+    "temperature_last",
+    727.0
+   ],
+   [
+    "hematocrit_last",
+    676.0
+   ],
+   [
+    "carbon_dioxide_venous_last",
+    503.0
+   ],
+   [
+    "potassium_last",
+    500.0
+   ]
+  ],
+  "rank_total_days_observed": 1,
+  "positives_only_synthetic_rows": 17
+ },
+ {
+  "name": "B_48h_sem_total_days",
+  "n_patients": 2625,
+  "n_pos": 82,
+  "n_test_pos": 25,
+  "n_features": 105,
+  "per_model": {
+   "LGBM": {
+    "cv_mean": 0.46402493482725005,
+    "cv_median": 0.42619762595373745,
+    "test_ap": 0.6367616819687317
+   },
+   "HIST": {
+    "cv_mean": 0.1715243144180085,
+    "cv_median": 0.14439351498175027,
+    "test_ap": 0.299027176146212
+   },
+   "XGB": {
+    "cv_mean": 0.4238917886973219,
+    "cv_median": 0.3712836638116301,
+    "test_ap": 0.5236658462019589
+   }
+  },
+  "best_model": "LGBM",
+  "test_ap": 0.6367616819687317,
+  "test_ap_ci": [
+   0.45147281778500575,
+   0.797575187245386
+  ],
+  "test_roc": 0.921992136304063,
+  "thr_on_test": {
+   "t": 0.017508754377188594,
+   "recall": 0.8,
+   "precision": 0.25316455696202533,
+   "cm": [
+    704,
+    59,
+    5,
+    20
+   ]
+  },
+  "thr_oof": {
+   "t": 0.08204102051025512,
+   "recall": 0.68,
+   "precision": 0.3953488372093023,
+   "cm": [
+    737,
+    26,
+    8,
+    17
+   ]
+  },
+  "top_features": [
+   [
+    "age_in_months",
+    1996.0
+   ],
+   [
+    "c_reactive_protein_last",
+    989.0
+   ],
+   [
+    "neutrophil_ap_last",
+    857.0
+   ],
+   [
+    "temperature_last",
+    844.0
+   ],
+   [
+    "hematocrit_last",
+    828.0
+   ],
+   [
+    "chloride_last",
+    599.0
+   ],
+   [
+    "potassium_last",
+    570.0
+   ],
+   [
+    "procalcitonin_last",
+    559.0
+   ]
+  ],
+  "positives_only_synthetic_rows": 26
+ },
+ {
+  "name": "C_24h_corte_aleatorio_neg",
+  "n_patients": 2625,
+  "n_pos": 82,
+  "n_test_pos": 25,
+  "n_features": 101,
+  "per_model": {
+   "LGBM": {
+    "cv_mean": 0.20238786729768687,
+    "cv_median": 0.1730555439756089,
+    "test_ap": 0.19195125906710964
+   },
+   "HIST": {
+    "cv_mean": 0.08748482485877054,
+    "cv_median": 0.0760254701834626,
+    "test_ap": 0.131634999872649
+   },
+   "XGB": {
+    "cv_mean": 0.21674727417065287,
+    "cv_median": 0.18756112021142596,
+    "test_ap": 0.17491627995622527
+   }
+  },
+  "best_model": "XGB",
+  "test_ap": 0.17491627995622527,
+  "test_ap_ci": [
+   0.07908948542475552,
+   0.3459584441682817
+  ],
+  "test_roc": 0.7228047182175623,
+  "thr_on_test": {
+   "t": 0.7393696848424212,
+   "recall": 0.52,
+   "precision": 0.25,
+   "cm": [
+    724,
+    39,
+    12,
+    13
+   ]
+  },
+  "thr_oof": {
+   "t": 0.7973986993496748,
+   "recall": 0.32,
+   "precision": 0.22857142857142856,
+   "cm": [
+    736,
+    27,
+    17,
+    8
+   ]
+  },
+  "top_features": [
+   [
+    "glasgow_mean",
+    0.04425828158855438
+   ],
+   [
+    "glasgow_last",
+    0.03905217722058296
+   ],
+   [
+    "thromboplastin_time_mean",
+    0.037713825702667236
+   ],
+   [
+    "carbon_dioxide_venous_mean",
+    0.028373660519719124
+   ],
+   [
+    "capillary_none",
+    0.027163974940776825
+   ],
+   [
+    "thromboplastin_time_last",
+    0.026823585852980614
+   ],
+   [
+    "c_reactive_protein_max",
+    0.026300301775336266
+   ],
+   [
+    "thromboplastin_time_max",
+    0.025999490171670914
+   ]
+  ],
+  "positives_only_synthetic_rows": 17
+ },
+ {
+  "name": "C_48h_corte_aleatorio_neg",
+  "n_patients": 2625,
+  "n_pos": 82,
+  "n_test_pos": 25,
+  "n_features": 101,
+  "per_model": {
+   "LGBM": {
+    "cv_mean": 0.31675411674946086,
+    "cv_median": 0.3282055192046909,
+    "test_ap": 0.28294158213848253
+   },
+   "HIST": {
+    "cv_mean": 0.12558345407311128,
+    "cv_median": 0.11177454206921511,
+    "test_ap": 0.1507338311474441
+   },
+   "XGB": {
+    "cv_mean": 0.25227654776297104,
+    "cv_median": 0.237211203772892,
+    "test_ap": 0.2653124679090484
+   }
+  },
+  "best_model": "LGBM",
+  "test_ap": 0.28294158213848253,
+  "test_ap_ci": [
+   0.14166008064209812,
+   0.4814852840584585
+  ],
+  "test_roc": 0.8379292267365662,
+  "thr_on_test": {
+   "t": 0.22561280640320158,
+   "recall": 0.52,
+   "precision": 0.25,
+   "cm": [
+    724,
+    39,
+    12,
+    13
+   ]
+  },
+  "thr_oof": {
+   "t": 0.28314157078539265,
+   "recall": 0.52,
+   "precision": 0.2765957446808511,
+   "cm": [
+    729,
+    34,
+    12,
+    13
+   ]
+  },
+  "top_features": [
+   [
+    "age_in_months",
+    1990.0
+   ],
+   [
+    "neutrophil_ap_last",
+    1055.0
+   ],
+   [
+    "temperature_last",
+    977.0
+   ],
+   [
+    "c_reactive_protein_last",
+    960.0
+   ],
+   [
+    "hematocrit_last",
+    916.0
+   ],
+   [
+    "potassium_last",
+    600.0
+   ],
+   [
+    "bilirubin_last",
+    589.0
+   ],
+   [
+    "chloride_last",
+    567.0
+   ]
+  ],
+  "positives_only_synthetic_rows": 26
+ }
+]
