@@ -5,10 +5,10 @@
 **PT:** Reanálise crítica do TCC original (v1). A explicação completa, com tabelas e figuras, está no
 [README principal (português)](../README.md#-retrospectiva-o-que-estava-errado-na-v1).
 
-**AI transparency:** this reanalysis was carried out with AI assistance (Claude) under my direction; all results
-were re-run and verified.
-**Transparência sobre IA:** esta reanálise foi feita com apoio de IA (Claude), sob minha direção. Todos os
-resultados foram reexecutados e verificados.
+**AI transparency:** the original thesis (v1) was built without AI assistance. This reanalysis was carried out
+with AI assistance (Claude) under my direction; all results were re-run and verified.
+**Transparência sobre IA:** o TCC original (v1) foi feito sem apoio de IA. Esta reanálise foi feita com apoio de
+IA (Claude), sob minha direção. Todos os resultados foram reexecutados e verificados.
 
 | File / Arquivo | EN | PT |
 |---|---|---|

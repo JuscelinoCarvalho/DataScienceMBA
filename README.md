@@ -25,8 +25,8 @@ Autor: **Juscelino Alves de Carvalho** · Orientador: **Prof. Francisco Louzada*
 > são corrigidas. O sinal preditivo existe (7 a 10 vezes acima do acaso), mas **não é suficiente para uso
 > clínico**. Não escondi nada: os erros, as divergências e as correções estão documentados abaixo.
 >
-> 🤖 **Transparência sobre o uso de IA:** a reanálise (v2) foi feita com apoio de IA (Claude), sob minha
-> direção. Todos os resultados foram reexecutados e verificados.
+> 🤖 **Transparência sobre o uso de IA:** o TCC original (v1) foi feito **sem apoio de IA**. A reanálise (v2)
+> foi feita com apoio de IA (Claude), sob minha direção. Todos os resultados foram reexecutados e verificados.
 
 ---
 
