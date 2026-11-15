@@ -24,6 +24,9 @@ Author: **Juscelino Alves de Carvalho** · Advisor: **Prof. Francisco Louzada**
 > **Honest outcome:** the published PR-AUC of **0.75** drops to **about 0.2–0.3** once the flaws are fixed.
 > There is a real predictive signal (7–10× above chance), but it is **not good enough for clinical use**.
 > Nothing is hidden: the errors, the discrepancies and the fixes are all documented below.
+>
+> 🤖 **AI transparency:** the reanalysis (v2) was carried out with AI assistance (Claude) under my direction.
+> All results were re-run and verified.
 
 ---
 

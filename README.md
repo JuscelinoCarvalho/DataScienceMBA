@@ -24,6 +24,9 @@ Autor: **Juscelino Alves de Carvalho** · Orientador: **Prof. Francisco Louzada*
 > **Resultado honesto:** a PR-AUC publicada de **0,75** cai para **cerca de 0,2 a 0,3** quando as falhas
 > são corrigidas. O sinal preditivo existe (7 a 10 vezes acima do acaso), mas **não é suficiente para uso
 > clínico**. Não escondi nada: os erros, as divergências e as correções estão documentados abaixo.
+>
+> 🤖 **Transparência sobre o uso de IA:** a reanálise (v2) foi feita com apoio de IA (Claude), sob minha
+> direção. Todos os resultados foram reexecutados e verificados.
 
 ---
 

@@ -5,6 +5,11 @@
 **PT:** Reanálise crítica do TCC original (v1). A explicação completa, com tabelas e figuras, está no
 [README principal (português)](../README.md#-retrospectiva-o-que-estava-errado-na-v1).
 
+**AI transparency:** this reanalysis was carried out with AI assistance (Claude) under my direction; all results
+were re-run and verified.
+**Transparência sobre IA:** esta reanálise foi feita com apoio de IA (Claude), sob minha direção. Todos os
+resultados foram reexecutados e verificados.
+
 | File / Arquivo | EN | PT |
 |---|---|---|
 | `01_diagnose_v1.py` | Reproduces the v1 pipeline and changes **one factor at a time** (leaky feature, negative cut-off) to measure each flaw | Reproduz o pipeline da v1 e muda **um fator por vez** (feature com vazamento, corte dos negativos) para medir cada falha |
